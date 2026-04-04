@@ -18,14 +18,15 @@ module Apnotic
     end
 
     def initialize(options={})
-      @url             = options[:url] || APPLE_PRODUCTION_SERVER_URL
-      @cert_path       = options[:cert_path]
-      @cert_pass       = options[:cert_pass]
-      @connect_timeout = options[:connect_timeout] || 30
-      @auth_method     = options[:auth_method] || :cert
-      @team_id         = options[:team_id]
-      @key_id          = options[:key_id]
-      @first_push      = true
+      @url                    = options[:url] || APPLE_PRODUCTION_SERVER_URL
+      @cert_path              = options[:cert_path]
+      @cert_pass              = options[:cert_pass]
+      @connect_timeout        = options[:connect_timeout] || 30
+      @auth_method            = options[:auth_method] || :cert
+      @team_id                = options[:team_id]
+      @key_id                 = options[:key_id]
+      @max_concurrent_streams = options[:max_concurrent_streams]
+      @first_push             = true
 
       raise "Cert file not found: #{@cert_path}" unless @cert_path && (@cert_path.respond_to?(:read) || File.exist?(@cert_path))
 
@@ -88,14 +89,21 @@ module Apnotic
     end
 
     def delayed_push_async(push)
-      until streams_available? do
+      until streams_available?
         sleep 0.001
       end
       @client.call_async(push.http2_request)
+    rescue HTTP2::Error::StreamLimitExceeded
+      sleep 0.001
+      retry
     end
 
     def streams_available?
-      remote_max_concurrent_streams - @client.stream_count > 0
+      effective_max_concurrent_streams - @client.stream_count > 0
+    end
+
+    def effective_max_concurrent_streams
+      @max_concurrent_streams || [remote_max_concurrent_streams, HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS].min
     end
 
     def remote_max_concurrent_streams
