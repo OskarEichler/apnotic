@@ -59,6 +59,34 @@ describe "Sending Async Push Notifications" do
     expect(requests.count).to eq count
   end
 
+  context "when the server advertises a limit higher than the http-2 local default" do
+    let(:port)   { 9517 }
+    let(:server) { Apnotic::Dummy::Server.new(port: port, max_concurrent_streams: 1000) }
+
+    it "sends more than 100 async notifications without raising StreamLimitExceeded" do
+      notification       = Apnotic::Notification.new(device_id)
+      notification.alert = "test-notification"
+
+      requests      = []
+      # Hold each stream open briefly so 101 are in-flight simultaneously,
+      # exposing the local http-2 limit of 100 on unfixed code
+      server.on_req = Proc.new { |req| sleep 0.5; requests.push(req) }
+
+      count = HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS + 1
+
+      expect do
+        count.times do
+          push = connection.prepare_push(notification)
+          connection.push_async(push)
+        end
+      end.to_not raise_error
+
+      connection.join
+
+      expect(requests.count).to eq count
+    end
+  end
+
   it "returns a response" do
     notification       = Apnotic::Notification.new(device_id)
     notification.alert = "test-notification"

@@ -23,9 +23,10 @@ module Apnotic
       attr_accessor :on_req
 
       def initialize(options={})
-        @port          = options[:port]
-        @listen_thread = nil
-        @threads       = []
+        @port                       = options[:port]
+        @max_concurrent_streams     = options[:max_concurrent_streams] || 1
+        @listen_thread              = nil
+        @threads                    = []
       end
 
       def listen
@@ -56,7 +57,7 @@ module Apnotic
       private
 
       def handle(socket)
-        conn = HTTP2::Server.new(settings_max_concurrent_streams: 1)
+        conn = HTTP2::Server.new(settings_max_concurrent_streams: @max_concurrent_streams)
 
         conn.on(:frame) { |bytes| socket.write(bytes) }
 
@@ -66,20 +67,23 @@ module Apnotic
           stream.on(:headers) { |h| req.import_headers(h) }
           stream.on(:data) { |d| req.body << d }
           stream.on(:half_close) do
-            # callbacks
-            res = on_req.call(req) if on_req
-            res = NetHttp2::Response.new(
-              headers: { ":status" => "200" },
-              body:    "response body"
-            ) unless res.is_a?(Response)
+            Thread.new do
+              # Run on_req in a background thread so the socket read loop
+              # is not blocked, allowing concurrent stream handling
+              res = on_req.call(req) if on_req
+              res = NetHttp2::Response.new(
+                headers: { ":status" => "200" },
+                body:    "response body"
+              ) unless res.is_a?(Response)
 
-            stream.headers({
-              ':status'        => res.headers[":status"],
-              'content-length' => res.body.bytesize.to_s,
-              'content-type'   => 'text/plain',
-            }, end_stream: false)
+              stream.headers({
+                ':status'        => res.headers[":status"],
+                'content-length' => res.body.bytesize.to_s,
+                'content-type'   => 'text/plain',
+              }, end_stream: false)
 
-            stream.data(res.body, end_stream: true)
+              stream.data(res.body, end_stream: true)
+            end
           end
         end
 
