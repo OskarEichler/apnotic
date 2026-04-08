@@ -25,7 +25,6 @@ module Apnotic
       @auth_method            = options[:auth_method] || :cert
       @team_id                = options[:team_id]
       @key_id                 = options[:key_id]
-      @max_concurrent_streams = options[:max_concurrent_streams]
       @first_push             = true
 
       raise "Cert file not found: #{@cert_path}" unless @cert_path && (@cert_path.respond_to?(:read) || File.exist?(@cert_path))
@@ -103,7 +102,7 @@ module Apnotic
     end
 
     def effective_max_concurrent_streams
-      @max_concurrent_streams || [remote_max_concurrent_streams, HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS].min
+      [remote_max_concurrent_streams, HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS].min
     end
 
     def remote_max_concurrent_streams

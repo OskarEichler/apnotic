@@ -151,15 +151,6 @@ describe Apnotic::Connection do
       end
     end
 
-    context "when max_concurrent_streams is explicitly set" do
-      let(:connection) do
-        Apnotic::Connection.new(url: url, cert_path: cert_path, max_concurrent_streams: 200)
-      end
-
-      it "uses the configured value regardless of remote or local limits" do
-        expect(connection.send(:effective_max_concurrent_streams)).to eq 200
-      end
-    end
   end
 
   describe "#streams_available?" do
