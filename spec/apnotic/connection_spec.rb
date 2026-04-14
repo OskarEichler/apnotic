@@ -121,4 +121,74 @@ describe Apnotic::Connection do
       expect(exception).to eq error
     end
   end
+
+  describe "#effective_max_concurrent_streams" do
+
+    let(:client) { connection.instance_variable_get(:@client) }
+
+    context "when max_concurrent_streams is not set" do
+      it "uses the minimum of remote and http-2 local defaults" do
+        allow(client).to receive(:remote_settings).and_return(
+          settings_max_concurrent_streams: 1000
+        )
+        expect(connection.send(:effective_max_concurrent_streams)).to eq(
+          [1000, HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS].min
+        )
+      end
+
+      it "respects the local http-2 limit when remote is higher" do
+        allow(client).to receive(:remote_settings).and_return(
+          settings_max_concurrent_streams: 1000
+        )
+        expect(connection.send(:effective_max_concurrent_streams)).to eq HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS
+      end
+
+      it "respects the remote limit when it is lower than the local default" do
+        allow(client).to receive(:remote_settings).and_return(
+          settings_max_concurrent_streams: 50
+        )
+        expect(connection.send(:effective_max_concurrent_streams)).to eq 50
+      end
+    end
+
+  end
+
+  describe "#streams_available?" do
+
+    let(:client) { connection.instance_variable_get(:@client) }
+
+    it "returns false when stream count is at the effective max" do
+      allow(client).to receive(:remote_settings).and_return(
+        settings_max_concurrent_streams: 1000
+      )
+      allow(client).to receive(:stream_count).and_return(HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS)
+      expect(connection.send(:streams_available?)).to be false
+    end
+
+    it "returns true when stream count is below the effective max" do
+      allow(client).to receive(:remote_settings).and_return(
+        settings_max_concurrent_streams: 1000
+      )
+      allow(client).to receive(:stream_count).and_return(HTTP2::DEFAULT_MAX_CONCURRENT_STREAMS - 1)
+      expect(connection.send(:streams_available?)).to be true
+    end
+  end
+
+  describe "#delayed_push_async" do
+
+    let(:client) { connection.instance_variable_get(:@client) }
+    let(:push)   { double(:push, http2_request: double(:http2_request)) }
+
+    it "retries when HTTP2::Error::StreamLimitExceeded is raised" do
+      call_count = 0
+      allow(connection).to receive(:streams_available?).and_return(true)
+      allow(client).to receive(:call_async) do
+        call_count += 1
+        raise HTTP2::Error::StreamLimitExceeded if call_count < 3
+      end
+
+      connection.send(:delayed_push_async, push)
+      expect(call_count).to eq 3
+    end
+  end
 end
