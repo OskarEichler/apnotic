@@ -25,6 +25,8 @@ describe Apnotic::Notification do
         notification.content_state      = { content: "content" }
         notification.timestamp          = 1168364460
         notification.event              = "update"
+        notification.attributes         = { content: "content" }
+        notification.attributes_type    = 'attributes_type'
       end
 
       it { is_expected.to have_attributes(token: "token") }
@@ -42,6 +44,8 @@ describe Apnotic::Notification do
       it { is_expected.to have_attributes(content_state: { content: "content" }) }
       it { is_expected.to have_attributes(timestamp: 1168364460) }
       it { is_expected.to have_attributes(event: "update") }
+      it { is_expected.to have_attributes(attributes: { content: "content" }) }
+      it { is_expected.to have_attributes(attributes_type: 'attributes_type') }
     end
 
     # <https://developer.apple.com/library/ios/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/APNsProviderAPI.html>
@@ -123,6 +127,8 @@ describe Apnotic::Notification do
         notification.timestamp          = 1168364460
         notification.event              = "update"
         notification.dismissal_date     = 1168364461
+        notification.attributes         = { content: "content" }
+        notification.attributes_type    = 'attributes_type'
       end
 
       it { is_expected.to eq (
@@ -143,6 +149,8 @@ describe Apnotic::Notification do
             'timestamp'          => 1168364460,
             'event'              => 'update',
             'dismissal-date'     => 1168364461,
+            'attributes'         => { content: "content" },
+            'attributes-type'    => 'attributes_type'
           },
           acme1: "bar"
         }.to_json
